@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Casa Justa — Deploying...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #080c08;
+      font-family: 'Courier New', Courier, monospace;
+      overflow: hidden;
+      cursor: none;
+    }
+
+    /* Scanlines overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.08) 2px,
+        rgba(0, 0, 0, 0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* CRT vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.6) 100%);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .terminal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Title bar */
+    .titlebar {
+      background: #111a11;
+      border-bottom: 1px solid #1e3a1e;
+      padding: 0 20px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .dots { display: flex; gap: 8px; }
+    .dot {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+    }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #febc2e; }
+    .dot-g { background: #28c840; }
+
+    .title-center {
+      flex: 1;
+      text-align: center;
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      animation: blink-warn 1s step-end infinite;
+    }
+
+    @keyframes blink-warn {
+      0%, 100% { color: #ff3b30; opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .title-right {
+      font-size: 11px;
+      color: #2a4a2a;
+      letter-spacing: 0.05em;
+    }
+
+    /* Screen */
+    .screen {
+      flex: 1;
+      padding: 18px 24px 24px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .lines {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      right: 24px;
+      max-height: calc(100% - 24px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .line {
+      font-size: clamp(11px, 1.1vw, 14px);
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .line.cmd   { color: #69e87a; }
+    .line.out   { color: #2e5c2e; }
+    .line.warn  { color: #ff9f0a; }
+    .line.err   { color: #ff453a; }
+    .line.info  { color: #0a84ff; }
+    .line.suc   { color: #32d74b; font-weight: bold; }
+
+    .cursor {
+      display: inline-block;
+      width: 9px;
+      height: 1.1em;
+      background: #4caf50;
+      vertical-align: text-bottom;
+      animation: blink-cur 1s step-end infinite;
+    }
+    @keyframes blink-cur { 50% { opacity: 0; } }
+
+    /* Progress bar */
+    .prog-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: clamp(11px, 1.1vw, 14px);
+      line-height: 1.75;
+      color: #ff9f0a;
+    }
+    .prog-track {
+      flex: 1;
+      max-width: 380px;
+      height: 7px;
+      background: #1a2e1a;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%;
+      background: #4caf50;
+      border-radius: 4px;
+      transition: width 80ms linear;
+    }
+    .prog-pct {
+      color: #4caf50;
+      font-size: clamp(10px, 1vw, 13px);
+      min-width: 38px;
+    }
+
+    /* Matrix rain in background (canvas) */
+    canvas {
+      position: fixed;
+      inset: 0;
+      opacity: 0.04;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .screen { z-index: 1; }
+    .titlebar { z-index: 2; }
+  </style>
+</head>
+<body>
+  <canvas id="matrix"></canvas>
+
+  <div class="terminal">
+    <div class="titlebar">
+      <div class="dots">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+      </div>
+      <div class="title-center" id="warn-text">⚠ DON'T TOUCH ANY KEYS ⚠</div>
+      <div class="title-right" id="clock">--:--:--</div>
+    </div>
+    <div class="screen">
+      <div class="lines" id="lines"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ── Matrix rain ── */
+    const cv = document.getElementById('matrix');
+    const cx = cv.getContext('2d');
+    function resizeCv() { cv.width = innerWidth; cv.height = innerHeight; }
+    resizeCv();
+    window.addEventListener('resize', resizeCv);
+    const cols = () => Math.floor(cv.width / 18);
+    let drops = [];
+    function initDrops() { drops = Array.from({length: cols()}, () => Math.random() * cv.height / 18 | 0); }
+    initDrops();
+    const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF';
+    function drawMatrix() {
+      cx.fillStyle = 'rgba(8,12,8,0.05)';
+      cx.fillRect(0, 0, cv.width, cv.height);
+      cx.fillStyle = '#0f3f0f';
+      cx.font = '14px monospace';
+      drops.forEach((y, i) => {
+        cx.fillText(chars[Math.random() * chars.length | 0], i * 18, y * 18);
+        if (y * 18 > cv.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      });
+    }
+    setInterval(drawMatrix, 60);
+
+    /* ── Clock ── */
+    function tick() {
+      const n = new Date();
+      document.getElementById('clock').textContent =
+        String(n.getHours()).padStart(2,'0') + ':' +
+        String(n.getMinutes()).padStart(2,'0') + ':' +
+        String(n.getSeconds()).padStart(2,'0');
+    }
+    tick(); setInterval(tick, 1000);
+
+    /* ── Warning rotation ── */
+    const warns = [
+      '⚠ DON\'T TOUCH ANY KEYS ⚠',
+      '⚠ NÃO MEXA EM NADA ⚠',
+      '⚠ PROCESSO CRÍTICO EM ANDAMENTO ⚠',
+      '⚠ SERIOUSLY. DON\'T. ⚠',
+      '⚠ DEPLOYING TO PRODUCTION ⚠',
+      '⚠ TOUCHING KEYS WILL BREAK PROD ⚠',
+      '⚠ EU TO FALANDO, NÃO MEXA ⚠',
+      '⚠ CRITICAL OPERATION — STAND BY ⚠',
+    ];
+    let wi = 0;
+    setInterval(() => {
+      wi = (wi + 1) % warns.length;
+      document.getElementById('warn-text').textContent = warns[wi];
+    }, 2500);
+
+    /* ── Terminal lines ── */
+    const script = [
+      { d: 800,  t: '$ whoami', c: 'cmd' },
+      { d: 300,  t: 'edu — senior developer, casa-justa project', c: 'out' },
+      { d: 700,  t: '$ cd ~/Projects/casa-justa && ls -la', c: 'cmd' },
+      { d: 300,  t: 'total 312\ndrwxr-xr-x  14 edu  staff   448B May 25 03:47 .\ndrwxr-xr-x  81 edu  staff  2.6KB May 25 03:47 ..\n-rw-r--r--   1 edu  staff  1.2KB May 25 03:47 next.config.ts\n-rw-r--r--   1 edu  staff  3.4KB May 25 03:47 tailwind.config.ts\ndrwxr-xr-x  18 edu  staff   576B May 25 04:12 app\ndrwxr-xr-x   5 edu  staff   160B May 25 04:12 components', c: 'out' },
+      { d: 900,  t: '$ git status', c: 'cmd' },
+      { d: 300,  t: 'On branch main\nYour branch is up to date with \'origin/main\'.\nnothing to commit, working tree clean', c: 'suc' },
+      { d: 700,  t: '$ npm run build', c: 'cmd' },
+      { d: 400,  t: '▶ Next.js 16.2.6', c: 'info' },
+      { d: 300,  t: '   Creating an optimized production build ...', c: 'warn' },
+      { d: 100,  t: '__PROGRESS__', prog: true },
+      { d: 200,  t: ' ✓  Compiled successfully in 8.4s', c: 'suc' },
+      { d: 100,  t: '   Route (app)                        Size', c: 'out' },
+      { d: 80,   t: '   ┌ ○ /                          4.12 kB', c: 'out' },
+      { d: 80,   t: '   ├ ○ /dashboard                 8.94 kB', c: 'out' },
+      { d: 80,   t: '   ├ ○ /tasks                     6.31 kB', c: 'out' },
+      { d: 80,   t: '   ├ ○ /members                   5.88 kB', c: 'out' },
+      { d: 80,   t: '   ├ ○ /balance                   7.02 kB', c: 'out' },
+      { d: 80,   t: '   └ ○ /onboarding               11.47 kB', c: 'out' },
+      { d: 700,  t: '$ npm run test -- --coverage', c: 'cmd' },
+      { d: 300,  t: ' PASS  app/dashboard/page.test.tsx (3.2s)', c: 'suc' },
+      { d: 200,  t: ' PASS  lib/utils.test.ts (1.1s)', c: 'suc' },
+      { d: 200,  t: ' PASS  components/ui/Avatar.test.tsx (0.8s)', c: 'suc' },
+      { d: 100,  t: ' PASS  lib/mock-data.test.ts (0.6s)', c: 'suc' },
+      { d: 300,  t: '----------|---------|----------|---------|----------\nFile      |  % Stmts | % Branch |  % Funcs |  % Lines\n----------|---------|----------|---------|----------\nAll files |    94.7  |    91.2  |    96.1  |    94.7\n----------|---------|----------|---------|----------\nTests: 24 passed, 24 total', c: 'out' },
+      { d: 900,  t: '$ vercel --prod --yes', c: 'cmd' },
+      { d: 400,  t: 'Vercel CLI 33.7.0\n● Deploying casa-justa to production', c: 'info' },
+      { d: 300,  t: '  Building...', c: 'warn' },
+      { d: 100,  t: '__PROGRESS__', prog: true },
+      { d: 400,  t: '  Uploading [====================] 100%', c: 'warn' },
+      { d: 600,  t: '🚀  Production: https://casa-justa.vercel.app', c: 'suc' },
+      { d: 200,  t: '   Deployed in 12.3s  ·  Edge Network: 47 regions', c: 'out' },
+      { d: 1000, t: '$ curl -s https://casa-justa.vercel.app/api/health | jq', c: 'cmd' },
+      { d: 400,  t: '{\n  "status": "ok",\n  "version": "0.1.0",\n  "uptime": "0d 0h 0m 12s"\n}', c: 'suc' },
+      { d: 700,  t: '$ git add . && git commit -m "deploy: v0.1.0 production"', c: 'cmd' },
+      { d: 300,  t: '[main 7c3d9a2] deploy: v0.1.0 production\n 5 files changed, 289 insertions(+), 47 deletions(-)', c: 'out' },
+      { d: 500,  t: '$ git push origin main', c: 'cmd' },
+      { d: 300,  t: 'Enumerating objects: 13, done.\nCounting objects: 100% (13/13), done.\nWriting objects: 100% (7/7), 14.52 KiB | 4.84 MiB/s\nTo github.com:edu/casa-justa.git\n   9d42bb1..7c3d9a2  main -> main', c: 'out' },
+      { d: 1000, t: '$ echo "casa-justa: divide as tarefas, não a paz ✓"', c: 'cmd' },
+      { d: 300,  t: 'casa-justa: divide as tarefas, não a paz ✓', c: 'suc' },
+      { d: 1200, t: '$ # tudo certo! pode mexer no teclado... talvez.', c: 'warn' },
+      { d: 2000, t: '', c: 'out' },
+    ];
+
+    const container = document.getElementById('lines');
+    const MAX_LINES = 40;
+    let cursor, progEl;
+    let idx = 0;
+
+    function addCursor() {
+      if (cursor) cursor.remove();
+      cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      container.appendChild(cursor);
+    }
+
+    function addLine(text, cls) {
+      if (cursor) cursor.remove();
+      cursor = null;
+      text.split('\n').forEach(part => {
+        const d = document.createElement('div');
+        d.className = 'line ' + cls;
+        d.textContent = part;
+        container.appendChild(d);
+      });
+      // trim old lines
+      while (container.children.length > MAX_LINES + 2) {
+        container.children[0].remove();
+      }
+      addCursor();
+    }
+
+    function addProgress(cb) {
+      if (cursor) cursor.remove();
+      cursor = null;
+      const wrap = document.createElement('div');
+      wrap.className = 'prog-line';
+      const lbl = document.createElement('span');
+      lbl.textContent = '   Compiling';
+      const track = document.createElement('div');
+      track.className = 'prog-track';
+      const fill = document.createElement('div');
+      fill.className = 'prog-fill';
+      fill.style.width = '0%';
+      track.appendChild(fill);
+      const pct = document.createElement('span');
+      pct.className = 'prog-pct';
+      pct.textContent = '0%';
+      wrap.appendChild(lbl);
+      wrap.appendChild(track);
+      wrap.appendChild(pct);
+      container.appendChild(wrap);
+      addCursor();
+      let p = 0;
+      const iv = setInterval(() => {
+        p = Math.min(100, p + Math.random() * 11 + 2);
+        const rp = Math.round(p);
+        fill.style.width = rp + '%';
+        pct.textContent = rp + '%';
+        if (p >= 100) { clearInterval(iv); setTimeout(cb, 200); }
+      }, 90);
+    }
+
+    function next() {
+      if (idx >= script.length) { idx = 4; }
+      const item = script[idx++];
+      if (item.prog) {
+        setTimeout(() => addProgress(() => {
+          setTimeout(next, 300);
+        }), item.d);
+      } else {
+        setTimeout(() => {
+          addLine(item.t, item.c);
+          setTimeout(next, script[idx] ? script[idx].d : 800);
+        }, item.d);
+        return;
+      }
+    }
+
+    addCursor();
+    setTimeout(next, 500);
+
+    /* ── Click/key to "dismiss" (just refreshes) ── */
+    document.addEventListener('keydown', () => location.reload());
+    document.addEventListener('click', () => location.reload());
+  </script>
+</body>
+</html>
