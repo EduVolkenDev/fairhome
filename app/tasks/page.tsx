@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import BottomNav from '@/components/layout/BottomNav'
-import TaskAmbientOverlay from '@/components/tasks/TaskAmbientOverlay'
+import TaskAmbientPager from '@/components/tasks/TaskAmbientPager'
 import Header from '@/components/layout/Header'
 import Button from '@/components/ui/Button'
 import { buildAssignments } from '@/lib/app-state'
@@ -23,7 +23,7 @@ const weightConfig: Record<number, { bg: string; color: string; label: string }>
 
 export default function TasksPage() {
   const { state, setState } = useAppState()
-  const [previewTaskId, setPreviewTaskId] = useState<string | null>(null)
+  const [showManage, setShowManage] = useState(false)
   const [activeArea, setActiveArea] = useState<TaskArea | 'Todas'>('Todas')
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -55,7 +55,6 @@ export default function TasksPage() {
     setShowAdd(false)
   }
 
-  const previewIndex = previewTaskId ? filtered.findIndex(task => task.id === previewTaskId) : -1
   const toggleAssignment = (id: string) => setState(prev => ({
     ...prev,
     assignments: prev.assignments.map(a => a.id === id ? {
@@ -66,7 +65,9 @@ export default function TasksPage() {
   }))
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${showManage ? "" : "fair-task-app"}`}>
+      {showManage ? <>
+      <div className="fair-manager-back"><button type="button" onClick={() => setShowManage(false)}>← Voltar à experiência</button></div>
       <Header
         title="Tarefas"
             subtitle={`${state.tasks.length} tarefas ativas`}
@@ -117,7 +118,7 @@ export default function TasksPage() {
               </div>
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0F2EF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, color: '#A8B5AE' }}>🔄 Rodízio automático</span>
-                <button type="button" onClick={() => setPreviewTaskId(task.id)} style={{ border: 'none', background: '#F0EEFF', color: '#6653C8', padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Explorar tarefa →</button>
+                <button type="button" onClick={() => setShowManage(false)} style={{ border: 'none', background: '#F0EEFF', color: '#6653C8', padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Ver experiência →</button>
               </div>
             </div>
           )
@@ -152,17 +153,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {previewIndex >= 0 && (
-        <TaskAmbientOverlay
-          tasks={filtered}
-          index={previewIndex}
-          assignments={state.assignments}
-          members={state.members}
-          onNavigate={nextIndex => setPreviewTaskId(filtered[nextIndex]?.id ?? null)}
-          onClose={() => setPreviewTaskId(null)}
-          onToggle={toggleAssignment}
-        />
-      )}
+      </> : <TaskAmbientPager tasks={state.tasks} assignments={state.assignments} members={state.members} onToggle={toggleAssignment} onManage={() => setShowManage(true)} />}
       <BottomNav />
     </div>
   )
