@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BottomNav from '@/components/layout/BottomNav'
+import TaskAmbientOverlay from '@/components/tasks/TaskAmbientOverlay'
 import Header from '@/components/layout/Header'
 import Button from '@/components/ui/Button'
 import { buildAssignments } from '@/lib/app-state'
@@ -22,6 +23,7 @@ const weightConfig: Record<number, { bg: string; color: string; label: string }>
 
 export default function TasksPage() {
   const { state, setState } = useAppState()
+  const [previewTaskId, setPreviewTaskId] = useState<string | null>(null)
   const [activeArea, setActiveArea] = useState<TaskArea | 'Todas'>('Todas')
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -52,6 +54,16 @@ export default function TasksPage() {
     setName('')
     setShowAdd(false)
   }
+
+  const previewIndex = previewTaskId ? filtered.findIndex(task => task.id === previewTaskId) : -1
+  const toggleAssignment = (id: string) => setState(prev => ({
+    ...prev,
+    assignments: prev.assignments.map(a => a.id === id ? {
+      ...a,
+      status: a.status === 'done' ? 'pending' : 'done',
+      completedAt: a.status === 'done' ? undefined : new Date().toISOString(),
+    } : a),
+  }))
 
   return (
     <div className="app-shell">
@@ -105,7 +117,7 @@ export default function TasksPage() {
               </div>
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0F2EF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, color: '#A8B5AE' }}>🔄 Rodízio automático</span>
-                <span style={{ fontSize: 12, color: '#6FAF8E', fontWeight: 600 }}>Ativa na rotina</span>
+                <button type="button" onClick={() => setPreviewTaskId(task.id)} style={{ border: 'none', background: '#F0EEFF', color: '#6653C8', padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Explorar tarefa →</button>
               </div>
             </div>
           )
@@ -140,6 +152,17 @@ export default function TasksPage() {
         </div>
       )}
 
+      {previewIndex >= 0 && (
+        <TaskAmbientOverlay
+          tasks={filtered}
+          index={previewIndex}
+          assignments={state.assignments}
+          members={state.members}
+          onNavigate={nextIndex => setPreviewTaskId(filtered[nextIndex]?.id ?? null)}
+          onClose={() => setPreviewTaskId(null)}
+          onToggle={toggleAssignment}
+        />
+      )}
       <BottomNav />
     </div>
   )
