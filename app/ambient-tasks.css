@@ -12,8 +12,8 @@
 .ambient-headline p{color:#797ca4;font-size:13px;font-weight:600}
 .ambient-art-wrap{pointer-events:none;position:absolute;z-index:1;inset:22% -21% 20% 1%;display:flex;align-items:center;justify-content:center}
 .ambient-art-glow{position:absolute;width:70%;aspect-ratio:1;border-radius:50%;filter:blur(65px);opacity:.52}
-.ambient-art-image{position:relative;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 28px 25px #3b657928);animation:ambient-float 7s ease-in-out infinite}
-.ambient-art-fallback{display:grid;place-items:center;width:75%;aspect-ratio:1;border:1px solid #ffffffa8;border-radius:50%;color:#ffffffb8;font-size:clamp(130px,52vw,260px);text-shadow:0 13px 30px #59898744;background:radial-gradient(circle at 30% 22%,#ffffffc9,#ffffff18 68%);box-shadow:inset 0 4px 25px #ffffff9e,0 20px 65px #7798b348}
+.ambient-art-image{position:relative;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 28px 25px #3b657928);animation:ambient-slide-in 850ms cubic-bezier(.22,1,.36,1) both}
+.ambient-art-fallback{animation:ambient-slide-in 850ms cubic-bezier(.22,1,.36,1) both;display:grid;place-items:center;width:75%;aspect-ratio:1;border:1px solid #ffffffa8;border-radius:50%;color:#ffffffb8;font-size:clamp(130px,52vw,260px);text-shadow:0 13px 30px #59898744;background:radial-gradient(circle at 30% 22%,#ffffffc9,#ffffff18 68%);box-shadow:inset 0 4px 25px #ffffff9e,0 20px 65px #7798b348}
 .ambient-content{position:absolute;z-index:3;bottom:calc(22px + env(safe-area-inset-bottom));left:18px;right:18px}
 .ambient-glass{background:linear-gradient(145deg,#ffffffec,#ffffffbf);border:1px solid #ffffff;border-radius:28px;padding:22px;box-shadow:0 18px 58px #34477222, inset 0 1px #ffffff;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
 .ambient-details{display:grid;grid-template-columns:1fr 1fr;gap:16px}.ambient-details>div+div{border-left:1px solid #cbd1e4;padding-left:16px}
@@ -24,5 +24,5 @@
 .ambient-no-assignment{font-size:12px;color:#626a7b;padding:10px 0}
 .ambient-stepper{display:flex;justify-content:space-between;align-items:center;padding:14px 12px 0;color:#606b92;font-size:12px;font-weight:700}
 .ambient-stepper button{width:43px;height:43px;border:1px solid #ffffffc8;border-radius:50%;background:#ffffffaf;color:#594bc3;font-size:21px;cursor:pointer}
-@keyframes ambient-float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-9px) scale(1.018)}}
-@media(prefers-reduced-motion:reduce){.ambient-fade,.ambient-cta,.ambient-scene{transition:none!important}.ambient-art-image{animation:none!important}}
+@keyframes ambient-slide-in{from{opacity:0;transform:translate3d(66px,0,0) scale(.97);filter:blur(7px)}to{opacity:1;transform:translate3d(0,0,0) scale(1);filter:blur(0)}}
+@media(prefers-reduced-motion:reduce){.ambient-fade,.ambient-cta,.ambient-scene{transition:none!important}.ambient-art-image,.ambient-art-fallback{animation:none!important}}
